@@ -4,7 +4,7 @@
 
 Бураковська Марія
 
-Правила оформлення програмного коду для мови програмування Kotlin
+Правила оформлення програмного коду для мови програмування Kotlin за вимогами JetBrains
 
 Методи рефакторингу програмного коду(Rename Method, Encapsulate Field, Replace Conditional with Polymorphism)
 
