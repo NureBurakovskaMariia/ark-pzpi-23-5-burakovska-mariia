@@ -6,6 +6,6 @@
 
 Правила оформлення програмного коду для мови програмування Kotlin за вимогами JetBrains
 
-Методи рефакторингу програмного коду(Rename Method, Encapsulate Field, Replace Conditional with Polymorphism)
+Методи рефакторингу програмного коду у розробці розробці об’єктно-орієнтованих програм мовою C#: Rename Method, Encapsulate Field, Replace Conditional with Polymorphism
 
 Програмна система для допомоги тваринам в притулках
