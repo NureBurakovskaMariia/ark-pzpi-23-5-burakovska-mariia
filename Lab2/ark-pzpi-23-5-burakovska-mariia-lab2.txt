@@ -1,1 +1,790 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
 
+
+
+
+
+
+Звіт
+з лабораторної роботи № 2 з дисципліни
+Аналіз та рефакторинг коду
+за темою «Програмна система для допомоги тваринам у притулках із використанням технологій IoT, веб та мобільних клієнтів» 
+
+
+
+
+
+Виконала:                                                                 Перевірив:
+ст. гр. ПЗПІ-23-5                        			ст. викладач кафедри ПІ
+Бураковська Марія					Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН
+№ДатаВерсія звітуОпис змін та виправлень126.11.20250.1Створення структури звіту 
+
+
+
+2 ЗАВДАННЯ
+* Розробити будову програмної системи.
+* Створити UML діаграму прецедентів для серверної частини системи.
+* Створити ER діаграму даних.
+* Розробити базу даних (БД) програмної системи.
+* Створити діаграму структури БД.
+* Розробити функції роботи з БД (ORM або CoRM тощо).
+* Розробити API (REST або GraphQL, gRPC тощо) для взаємодії серверної частини з клієнтами.
+* Створити специфікацію розробленого API.
+* Створити програмну реалізацію розробленого API та функцій роботи з БД.
+* Перевірити роботу створеного програмного коду серверної частини системи.
+
+
+     3 ОПИС ВИКОНАНОЇ РОБОТИ
+     Будова програмної системи:
+* IoT (Python) — надсилає вимірювання (температура, вологість, рух) на сервер через HTTP.
+* Сервер (Backend) — Node.js + Express; REST API; аутентифікація JWT; бізнес-логіка; збереження в SQLite.
+* База даних — SQLite, реляційна схема.
+* Веб-клієнт — React, виклики до REST API.
+* Мобільний клієнт — Kotlin (Android), виклики до REST API, push-повідомлення (FCM).
+     Взаємодія:
+     IoT → (HTTP POST) → Backend → зберігає в БД → при потребі - сповіщення → клієнти (веб/моб) роблять запити через REST.
+	Було створено UML діаграму прецедентів для серверної частини системи та ER діаграму даних. Їх можна переглянути у Додатку Б
+     За допомогою середовища SQLite було створено базу даних. Скрипт знаходиться у Додатку В.
+     Також у Додатку Б наведено саму діаграму структури створеної бази даних.
+     Розробка функціональності для роботи з базою даних (БД) у вашій системі була виконана шляхом створення набору окремих JavaScript-модулів (файлів у папці models/). Ці модулі використовують бібліотеку Knex.js як інструмент доступу до даних (CoRM/ORM) для взаємодії з файловою базою даних SQLite. Загалом було розроблено вісім моделей, що покривають усю схему, визначену в проєкті.
+     Моделі animalModel.js, userModel.js та taskModel.js забезпечують повний функціонал управління основними даними. Наприклад, animalModel.js містить функції для додавання тварин (addAnimal), отримання списку тварин (getAllAnimals), оновлення їхніх даних (updateAnimal) та видалення (removeAnimal). Модель userModel.js відповідає за реєстрацію користувачів (addUser) та управління профілями, а також включає логіку для керування записами волонтерів та їх видаленням (removeVolunteer). Для завдань (taskModel.js) реалізовано створення завдань адміністратором (addTask), їх видалення (removeTask) та критично важливу функцію оновлення статусу (updateTaskStatus), яку будуть використовувати волонтери.
+     Додатково було реалізовано п'ять спеціалізованих моделей для керування залежними процесами. Модель sensorModel.js є ключовою для взаємодії з ІоТ-клієнтом: вона приймає показники (addReading) і включає бізнес-логіку checkAnomaly. Ця функція реалізує механізм Extend (розширення), перевіряючи, чи перевищує температура 30°C або чи падає вологість нижче 30%, і генерує алерт, якщо умова порушена. Це було додано для покриття вимог до моніторингу умов утримання. Модель medicalModel.js керує медичними записами (addRecord, removeRecord) та дозволяє отримати повну медичну історію для конкретної тварини. Модель adoptionModel.js обробляє весь цикл усиновлення: від подачі заявки користувачем (addRequest) до зміни статусу адміністратором (updateStatus — Схвалити/Відхилити), що відповідає бізнес-логіці притулку. Нарешті, donationModel.js дозволяє записувати пожертви (addDonation) та отримувати звіти/списки донатів (getAllDonations).
+     Усі ці функції моделей викликаються відповідними маршрутами, визначеними у головному файлі сервера app.js. Щоб забезпечити коректну роботу реляційних зв'язків у SQLite, у конфігураційний файл knexfile.js було додано команду PRAGMA foreign_keys = ON;. Це гарантує, що при видаленні головної сутності (наприклад, користувача або тварини) автоматично видаляються всі залежні записи (наприклад, заявки на усиновлення або медичні записи) завдяки механізму ON DELETE CASCADE. Успішне тестування всіх цих роутів за допомогою Postman підтвердило, що функції роботи з БД працюють відповідно до вимог.
+     Усі файли з кодом можна переглянути у Додатку Б.
+     Розроблений API для взаємодії серверної частини з веб-, мобільними та ІоТ-клієнтами реалізований за принципами REST (Representational State Transfer) із використанням фреймворку Express.js. Усі кінцеві точки (endpoints) прив'язані до загального префікса /api. Структура API відображає основні сутності системи, забезпечуючи чітке розділення відповідальності.
+     API включає роути для обробки основних бізнес-процесів притулку. Роути були розділені на категорії:
+* Users & Authentication (/register): Забезпечує публічну функцію реєстрації нових користувачів.
+* Animals (/animals): Дозволяє клієнтам переглядати список усіх тварин, доступних для усиновлення.
+* Adoptions (/adoptions): Кінцева точка для подачі заявки на усиновлення.
+* Donations (/donations): Роути для здійснення донатів та перегляду списку пожертв (для забезпечення прозорості).
+* Tasks (/tasks/{id}/status): Включає функціональність для Волонтерів – оновлення статусу призначеного завдання.
+* IoT (/sensors): Спеціалізований роут для прийому показників сенсорів (температура, вологість) від ІоТ-клієнта, що забезпечує виконання бізнес-логіки обробки даних та генерації сповіщень.
+     Для забезпечення чіткої, стандартизованої та інтерактивної документації було використано інструменти Swagger JSDoc та Swagger UI. Специфікація розробленого API була створена за підходом Code-First, де документація у форматі OpenAPI Specification генерується автоматично з коментарів JSDoc, розміщених безпосередньо над роутами у файлі app.js. Це гарантує, що документація завжди відповідає актуальній програмній реалізації. Інтерактивний інтерфейс Swagger UI доступний за маршрутом /api-docs і дозволяє клієнтам та розробникам тестувати кожен роут API безпосередньо в браузері.
+     Програмна реалізація API полягала у зв'язуванні HTTP-методів (GET, POST, PUT, DELETE) з відповідними функціями доступу до БД, реалізованими в моделях Knex.js. Усі роути були перевірені за допомогою Postman. Успішне тестування підтвердило, що API коректно обробляє вхідні JSON-запити, взаємодіє з базою даних SQLite та повертає очікувані коди HTTP-статусу (200, 201, 400). Таким чином, розробка API та його програмна реалізація завершені, що відповідає усім вимогам завдання.
+
+
+4 ВИСНОВКИ
+     У результаті виконання лабораторної роботи № 2 було успішно реалізовано початкову архітектуру серверної частини програмної системи для допомоги тваринам у притулках. Було розроблено будову системи та створено необхідні діаграми: UML діаграма прецедентів та ER діаграма даних.
+     Програмна реалізація серверної частини була виконана на базі Node.js та Express.js, з використанням Knex.js як CoRM для взаємодії з SQLite. Було розроблено вісім моделей БД , що охоплюють увесь функціонал системи.
+     Розроблено REST API , усі кінцеві точки якого були задокументовані за допомогою Swagger JSDoc та Swagger UI. Під час реалізації успішно впроваджено складну бізнес-логіку, зокрема, механізм Extend (генерація алерту ІоТ на основі даних сенсорів) та забезпечення цілісності реляційних зв'язків у БД.
+     Успішне тестування усіх ключових функцій API, включно з публічною реєстрацією та операціями CRUD, підтвердило повну програмну реалізацію серверної частини відповідно до вимог завдання
+
+
+5 ВИКОРИСТАНІ ДЖЕРЕЛА
+     1. Документація Node.js: https://nodejs.org/en/docs/
+     2. Документація Express.js: https://expressjs.com/
+     3. Документація Knex.js: http://knexjs.org/
+     4. Документація SQLite: https://www.sqlite.org/
+     5. Специфікація OpenAPI (Swagger): https://swagger.io/specification/
+     6. Документація Swagger JSDoc: https://github.com/Surnet/swagger-jsdoc
+
+
+ДОДАТОК А
+https://youtu.be/QrLloYn42ho
+0:19 - Архітектура
+0:39 - Діаграми
+2:34 - Огляд коду
+4:08 - Перевірка запитів
+
+ДОДАТОК Б
+
+Рисунок 1 – UML діаграма
+	
+
+Рисунок 2 – ER діаграма
+
+Рисунок 3 – Діаграма структури БД
+
+
+Рисунок 4 – Перевірка запиту на додавання донату
+
+
+Рисунок 5 – Перевірка запиту на отримання даних про донати 
+
+	Далі показано, який вигляд має документація у Swagger:
+
+Рисунок 6 – Документація усіх наявних запитів
+
+Рисунок 7 – Демонстрація вигляду одного з запитів у документації
+
+ДОДАТОК В
+Скрипт створення бази даних:
+ 1  CREATE TABLE users (
+      2   id INTEGER PRIMARY KEY AUTOINCREMENT,
+      3   name TEXT NOT NULL,
+      4   email TEXT UNIQUE NOT NULL,
+      5   password_hash TEXT NOT NULL,
+      6   role TEXT NOT NULL CHECK(role IN ('ADMIN','VOLUNTEER','USER'))
+      7  );
+      8  CREATE TABLE sqlite_sequence(name,seq);
+      9  CREATE TABLE animals (
+     10   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     11   name TEXT NOT NULL,
+     12   species TEXT,
+     13   breed TEXT,
+     14   gender TEXT,
+     15   birth_date DATE,
+     16   status TEXT DEFAULT 'available',
+     17   description TEXT
+     18  );
+     19  CREATE TABLE medical_records (
+     20   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     21   animal_id INTEGER NOT NULL,
+     22   date DATE NOT NULL,
+     23   description TEXT,
+     24   treatment TEXT,
+     25   FOREIGN KEY(animal_id) REFERENCES animals(id) ON DELETE CASCADE
+     26  );
+     27  CREATE TABLE adoption_requests (
+     28   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     29   user_id INTEGER NOT NULL,
+     30   animal_id INTEGER NOT NULL,
+     31   status TEXT DEFAULT 'pending',
+     32   request_date DATE DEFAULT CURRENT_DATE,
+     33   note TEXT,
+     34   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+     35   FOREIGN KEY(animal_id) REFERENCES animals(id) ON DELETE CASCADE
+     36  );
+     37  CREATE TABLE donations (
+     38   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     39   user_id INTEGER,
+     40   amount REAL,
+     41   type TEXT, -- money, material
+     42   note TEXT,
+     43   date DATE DEFAULT CURRENT_DATE,
+     44   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+     45  );
+     46  CREATE TABLE volunteers (
+     47   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     48   user_id INTEGER UNIQUE NOT NULL,
+     49   availability TEXT,
+     50   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+     51  );
+     52  CREATE TABLE tasks (
+     53   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     54   volunteer_id INTEGER,
+     55   description TEXT,
+     56   status TEXT DEFAULT 'open',
+     57   due_date DATE,
+     58   FOREIGN KEY(volunteer_id) REFERENCES volunteers(id) ON DELETE SET NULL
+     59  );
+     60  CREATE TABLE sensor_readings (
+     61   id INTEGER PRIMARY KEY AUTOINCREMENT,
+     62   animal_id INTEGER,
+     63   sensor_type TEXT,
+     64   value REAL,
+     65   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+     66   FOREIGN KEY(animal_id) REFERENCES animals(id) ON DELETE SET NULL
+     67  );
+     
+     adoptionModel.js:
+1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addRequest(requestData) {
+     6.         const [id] = await knex('adoption_requests').insert(requestData);
+     7.         return knex('adoption_requests').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function getAllRequests() {
+     11.         return knex('adoption_requests')
+     12.             .select('adoption_requests.*', 'users.name as user_name', 'animals.name as animal_name')
+     13.             .join('users', 'adoption_requests.user_id', 'users.id')
+     14.             .join('animals', 'adoption_requests.animal_id', 'animals.id')
+     15.             .orderBy('request_date', 'asc');
+     16.     }
+     17. 
+     18.     async function updateStatus(id, status) {
+     19.         await knex('adoption_requests').where({ id }).update({ status, status_date: knex.fn.now() });
+     20.         return knex('adoption_requests').where({ id }).first();
+     21.     }
+     22. 
+     23.     console.log("DEBUG: adoptionModel initialized.");
+     24. 
+     25.     module.exports = {
+     26.         addRequest,
+     27.         getAllRequests,
+     28.         updateStatus,
+     29.     };
+     30. 
+     31. } catch (error) {
+     32.     console.error("FATAL ERROR IN ADOPTION MODEL INITIALIZATION:", error.message);
+     33.     process.exit(1);
+     34. }
+     
+     animalModel.js:
+     1. try {
+     2.     const knexConfig = require('../knexfile');
+     3.     const knex = require('knex')(knexConfig.development);
+     4.     async function getAllAnimals() {
+     5.       return knex('animals').select('*');
+     6.     }
+     7. 
+     8.     async function getAnimalById(id) {
+     9.       return knex('animals').where({ id }).first();
+     10.     }
+     11. 
+     12.     async function addAnimal(animalData) {
+     13.       const [id] = await knex('animals').insert(animalData);
+     14.       return getAnimalById(id); 
+     15.     }
+     16. 
+     17.     async function updateAnimal(id, changes) {
+     18.       await knex('animals').where({ id }).update(changes);
+     19.       return getAnimalById(id);
+     20.     }
+     21. 
+     22.     async function removeAnimal(id) {
+     23.       return knex('animals').where({ id }).del(); 
+     24.     }
+     25. 
+     26.     console.log("DEBUG: Knex and animalModel initialized."); 
+     27. 
+     28.     module.exports = {
+     29.       getAllAnimals,
+     30.       getAnimalById,
+     31.       addAnimal,
+     32.       updateAnimal,
+     33.       removeAnimal,
+     34.     };
+     35. 
+     36. } catch (error) {
+     37.     console.error("FATAL ERROR IN ANIMAL MODEL INITIALIZATION:", error.message);
+     38.     process.exit(1); 
+     39. }
+     
+     donationModel.js:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addDonation(donationData) {
+     6.         const [id] = await knex('donations').insert(donationData);
+     7.         return knex('donations').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function getAllDonations() {
+     11.         return knex('donations')
+     12.             .select('donations.*', 'users.name as donor_name')
+     13.             .leftJoin('users', 'donations.user_id', 'users.id')
+     14.             .orderBy('date', 'desc');
+     15.     }
+     16. 
+     17.     console.log("DEBUG: donationModel initialized.");
+     18. 
+     19.     module.exports = {
+     20.         addDonation,
+     21.         getAllDonations,
+     22.     };
+     23. 
+     24. } catch (error) {
+     25.     console.error("FATAL ERROR IN DONATION MODEL INITIALIZATION:", error.message);
+     26.     process.exit(1);
+     27. }
+     
+     medicalModel.js:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addRecord(recordData) {
+     6.         const [id] = await knex('medical_records').insert(recordData);
+     7.         return knex('medical_records').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function getRecordsByAnimal(animal_id) {
+     11.         return knex('medical_records').where({ animal_id }).orderBy('date', 'desc');
+     12.     }
+     13.     
+     14.     async function removeRecord(id) {
+     15.         return knex('medical_records').where({ id }).del();
+     16.     }
+     17. 
+     18.     console.log("DEBUG: medicalModel initialized.");
+     19. 
+     20.     module.exports = {
+     21.         addRecord,
+     22.         getRecordsByAnimal,
+     23.         removeRecord, 
+     24.     };
+     25. 
+     26. } catch (error) {
+     27.     console.error("FATAL ERROR IN MEDICAL MODEL INITIALIZATION:", error.message);
+     28.     process.exit(1);
+     29. }
+     
+     sensorModel.js:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addReading(data) {
+     6.       const [id] = await knex('sensor_readings').insert(data);
+     7.       return knex('sensor_readings').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function checkAnomaly(data) {
+     11.         let anomalyDetails = [];
+     12.         if (data.sensor_type === 'Temperature' && data.value > 30.0) {
+     13.             anomalyDetails.push(`High temperature (${data.value} C)`);
+     14.         }
+     15. 
+     16.         if (data.sensor_type === 'Humidity' && data.value < 30.0) {
+     17.             anomalyDetails.push(`Low humidity (${data.value} %)`);
+     18.         }
+     19. 
+     20.         if (anomalyDetails.length > 0) {
+     21.             const message = `!!! ALERT: Anomalies detected for animal ${data.animal_id}: ${anomalyDetails.join(' and ')} !!!`;
+     22.             console.warn(message);
+     23.             return { isAnomaly: true, message: message };
+     24.         }
+     25.         return { isAnomaly: false, message: "Normal conditions" };
+     26.     }
+     27. 
+     28.     console.log("DEBUG: sensorModel initialized.");
+     29. 
+     30.     module.exports = {
+     31.       addReading,
+     32.       checkAnomaly,
+     33.     };
+     34. 
+     35. } catch (error) {
+     36.     console.error("FATAL ERROR IN SENSOR MODEL INITIALIZATION:", error.message);
+     37.     process.exit(1);
+     38. }
+     
+     taskModel.js:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addTask(taskData) {
+     6.       const [id] = await knex('tasks').insert(taskData);
+     7.       return knex('tasks').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function getTasksByVolunteer(volunteer_id) {
+     11.       return knex('tasks').where({ volunteer_id }).select('*'); 
+     12.     }
+     13. 
+     14.     async function updateTaskStatus(id, status) {
+     15.       await knex('tasks').where({ id }).update({ status, updated_at: knex.fn.now() });
+     16.       return knex('tasks').where({ id }).first();
+     17.     }
+     18.     
+     19.     async function updateTask(id, changes) {
+     20.         await knex('tasks').where({ id }).update({ ...changes, updated_at: knex.fn.now() });
+     21.         return knex('tasks').where({ id }).first();
+     22.     }
+     23. 
+     24.     async function removeTask(id) {
+     25.         return knex('tasks').where({ id }).del();
+     26.     }
+     27. 
+     28.     console.log("DEBUG: taskModel initialized.");
+     29. 
+     30.     module.exports = {
+     31.       addTask,
+     32.       getTasksByVolunteer,
+     33.       updateTaskStatus,
+     34.       updateTask,
+     35.       removeTask,
+     36.     };
+     37. 
+     38. } catch (error) {
+     39.     console.error("FATAL ERROR IN TASK MODEL INITIALIZATION:", error.message);
+     40.     process.exit(1);
+     41. }
+     
+     userModel.js:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addUser(userData) {
+     6.       const [id] = await knex('users').insert(userData);
+     7.       return knex('users').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function getUserByEmail(email) {
+     11.       return knex('users').where({ email }).first();
+     12.     }
+     13. 
+     14.     async function updateUser(id, changes) {
+     15.         await knex('users').where({ id }).update(changes);
+     16.         return knex('users').where({ id }).select('id', 'name', 'email', 'role').first();
+     17.     }
+     18.     
+     19.     async function removeUser(id) {
+     20.         return knex('users').where({ id }).del();
+     21.     }
+     22. 
+     23.     async function addVolunteer(volunteerData) {
+     24.         const [id] = await knex('volunteers').insert(volunteerData);
+     25.         return knex('volunteers').where({ id }).first();
+     26.     }
+     27. 
+     28.     async function getAllVolunteers() {
+     29.         return knex('volunteers')
+     30.             .join('users', 'volunteers.user_id', 'users.id')
+     31.             .select('volunteers.id', 'users.name', 'users.email', 'volunteers.availability');
+     32.     }
+     33. 
+     34.     async function removeVolunteer(id) {
+     35.         return knex('volunteers').where({ id }).del();
+     36.     }
+     37. 
+     38.     console.log("DEBUG: userModel initialized.");
+     39. 
+     40.     module.exports = {
+     41.       addUser,
+     42.       getUserByEmail,
+     43.       updateUser,
+     44.       removeUser,
+     45.       addVolunteer,
+     46.       getAllVolunteers,
+     47.       removeVolunteer,
+     48.     };
+     49. 
+     50. } catch (error) {
+     51.     console.error("FATAL ERROR IN USER MODEL INITIALIZATION:", error.message);
+     52.     process.exit(1);
+     53. }
+     
+     knexfile.js:
+     1. module.exports = {
+     2.   development: {
+     3.     client: 'sqlite3',
+     4.     connection: {
+     5.       filename: './pet_shelter.db' 
+     6.     },
+     7.     useNullAsDefault: true, 
+     8.     pool: {
+     9.       afterCreate: (conn, cb) => {
+     10.         conn.run('PRAGMA foreign_keys = ON', cb); 
+     11.       }
+     12.     }
+     13.   }
+     14. };
+     
+     app.js:
+     1. const express = require('express');
+     2. const animalModel = require('./models/animalModel');
+     3. const userModel = require('./models/userModel');
+     4. const taskModel = require('./models/taskModel');
+     5. const sensorModel = require('./models/sensorModel');
+     6. const adoptionModel = require('./models/adoptionModel');
+     7. const donationModel = require('./models/donationModel');
+     8. const medicalModel = require('./models/medicalModel');
+     9. const swaggerUi = require('swagger-ui-express');
+     10. const swaggerJsdoc = require('swagger-jsdoc');
+     11. 
+     12. const swaggerOptions = {
+     13.   definition: {
+     14.     openapi: '3.0.0',
+     15.     info: {
+     16.       title: 'Shelter Management API (Public/Volunteer)',
+     17.       version: '1.0.0',
+     18.       description: 'Публічний та волонтерський API для системи притулку',
+     19.     },
+     20.     servers: [{
+     21.       url: 'http://localhost:3000/api',
+     22.     }],
+     23.   },
+     24.   apis: ['./app.js'],
+     25. };
+     26. 
+     27. const swaggerSpec = swaggerJsdoc(swaggerOptions);
+     28. const app = express();
+     29. const PORT = 3000;
+     30. 
+     31. app.use(express.json());
+     32. app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+     33. 
+     34. app.get('/', (req, res) => {
+     35.   res.send('<h1>Shelter API Server is Running!</h1><p>Data endpoints start at: /api/</p>');
+     36. });
+     37. 
+     38. const router = express.Router();
+     39. 
+     40. /**
+     41.  * @openapi
+     42.  * /register:
+     43.  *   post:
+     44.  *     summary: Реєстрація нового користувача
+     45.  *     tags: [Users]
+     46.  *     requestBody:
+     47.  *       required: true
+     48.  *       description: Дані для реєстрації нового користувача.
+     49.  *       content:
+     50.  *         application/json:
+     51.  *           schema:
+     52.  *             type: object
+     53.  *             properties:
+     54.  *               name:
+     55.  *                 type: string
+     56.  *                 example: "Марія"
+     57.  *               email:
+     58.  *                 type: string
+     59.  *                 format: email
+     60.  *                 example: "maria@example.com"
+     61.  *               password_hash:
+     62.  *                 type: string
+     63.  *                 example: "securepassword123"
+     64.  *               role:
+     65.  *                 type: string
+     66.  *                 enum: [user, volunteer]
+     67.  *                 example: "user"
+     68.  *     responses:
+     69.  *       201:
+     70.  *         description: Користувач успішно зареєстрований.
+     71.  *       400:
+     72.  *         description: Помилка реєстрації.
+     73.  */
+     74. router.post('/register', async (req, res) => {
+     75.   try {
+     76.     const newUser = await userModel.addUser(req.body);
+     77.     res.status(201).json(newUser);
+     78.   } catch (error) {
+     79.     res.status(400).json({ message: 'Registration failed (Email or User already exists)' });
+     80.   }
+     81. });
+     82. 
+     83. /**
+     84.  * @openapi
+     85.  * /animals:
+     86.  *   get:
+     87.  *     summary: Отримати список усіх тварин для усиновлення
+     88.  *     tags: [Animals]
+     89.  *     responses:
+     90.  *       200:
+     91.  *         description: Успішний запит. Повертає список тварин.
+     92.  *       500:
+     93.  *         description: Помилка сервера.
+     94.  */
+     95. router.get('/animals', async (req, res) => {
+     96.   try {
+     97.     const animals = await animalModel.getAllAnimals();
+     98.     res.json(animals);
+     99.   } catch (error) {
+     100.     res.status(500).json({ message: 'Internal server error' });
+     101.   }
+     102. });
+     103. 
+     104. /**
+     105.  * @openapi
+     106.  * /tasks/{id}/status:
+     107.  *   put:
+     108.  *     summary: Оновити статус конкретного завдання (Волонтер)
+     109.  *     tags: [Tasks]
+     110.  *     parameters:
+     111.  *       - in: path
+     112.  *         name: id
+     113.  *         required: true
+     114.  *         schema:
+     115.  *           type: integer
+     116.  *         description: ID завдання
+     117.  *     requestBody:
+     118.  *       required: true
+     119.  *       description: Новий статус завдання
+     120.  *       content:
+     121.  *         application/json:
+     122.  *           schema:
+     123.  *             type: object
+     124.  *             properties:
+     125.  *               status:
+     126.  *                 type: string
+     127.  *                 enum: [pending, in_progress, completed]
+     128.  *                 example: in_progress
+     129.  *     responses:
+     130.  *       200:
+     131.  *         description: Статус оновлено.
+     132.  *       500:
+     133.  *         description: Помилка сервера.
+     134.  */
+     135. router.put('/tasks/:id/status', async (req, res) => {
+     136.   try {
+     137.     const updated = await taskModel.updateTaskStatus(req.params.id, req.body.status);
+     138.     res.json(updated);
+     139.   } catch (error) {
+     140.     res.status(500).json({ message: 'Could not update task status.' });
+     141.   }
+     142. });
+     143. 
+     144. /**
+     145.  * @openapi
+     146.  * /sensors:
+     147.  *   post:
+     148.  *     summary: Прийом даних від IoT-емулятора
+     149.  *     tags: [IoT]
+     150.  *     requestBody:
+     151.  *       required: true
+     152.  *       description: Дані сенсора
+     153.  *       content:
+     154.  *         application/json:
+     155.  *           schema:
+     156.  *             type: object
+     157.  *             properties:
+     158.  *               animal_id:
+     159.  *                 type: integer
+     160.  *               sensor_type:
+     161.  *                 type: string
+     162.  *                 enum: [Temperature, Humidity]
+     163.  *               value:
+     164.  *                 type: number
+     165.  *                 example: 25.5
+     166.  *     responses:
+     167.  *       201:
+     168.  *         description: Показник успішно прийнято.
+     169.  *       400:
+     170.  *         description: Недійсні дані.
+     171.  */
+     172. router.post('/sensors', async (req, res) => {
+     173.   try {
+     174.     const reading = await sensorModel.addReading(req.body);
+     175.     const anomaly = await sensorModel.checkAnomaly(req.body);
+     176.     res.status(201).json({ reading, anomaly });
+     177.   } catch (error) {
+     178.     res.status(400).json({ message: 'Invalid sensor data.' });
+     179.   }
+     180. });
+     181. 
+     182. /**
+     183.  * @openapi
+     184.  * /donations:
+     185.  *   post:
+     186.  *     summary: Здійснити донат
+     187.  *     tags: [Donations]
+     188.  *     requestBody:
+     189.  *       required: true
+     190.  *       description: Дані донату
+     191.  *       content:
+     192.  *         application/json:
+     193.  *           schema:
+     194.  *             type: object
+     195.  *             properties:
+     196.  *               amount:
+     197.  *                 type: number
+     198.  *                 example: 100.00
+     199.  *               type:
+     200.  *                 type: string
+     201.  *                 enum: [money, material]
+     202.  *               user_id:
+     203.  *                 type: integer
+     204.  *                 nullable: true
+     205.  *     responses:
+     206.  *       201:
+     207.  *         description: Донат успішно оброблено.
+     208.  *       400:
+     209.  *         description: Помилка донату.
+     210.  */
+     211. router.post('/donations', async (req, res) => {
+     212.   try {
+     213.     const donation = await donationModel.addDonation(req.body);
+     214.     res.status(201).json(donation);
+     215.   } catch {
+     216.     res.status(400).json({ message: 'Donation processing failed.' });
+     217.   }
+     218. });
+     219. 
+     220. /**
+     221.  * @openapi
+     222.  * /donations:
+     223.  *   get:
+     224.  *     summary: Отримати список усіх донатів
+     225.  *     tags: [Donations]
+     226.  *     responses:
+     227.  *       200:
+     228.  *         description: Список донатів.
+     229.  *       500:
+     230.  *         description: Помилка сервера.
+     231.  */
+     232. router.get('/donations', async (req, res) => {
+     233.   try {
+     234.     const donations = await donationModel.getAllDonations();
+     235.     res.json(donations);
+     236.   } catch {
+     237.     res.status(500).json({ message: 'Internal server error' });
+     238.   }
+     239. });
+     240. 
+     241. /**
+     242.  * @openapi
+     243.  * /medicals/animal/{id}:
+     244.  *   get:
+     245.  *     summary: Отримати медичну історію тварини
+     246.  *     tags: [Medical Records]
+     247.  *     parameters:
+     248.  *       - in: path
+     249.  *         name: id
+     250.  *         required: true
+     251.  *         schema:
+     252.  *           type: integer
+     253.  *     responses:
+     254.  *       200:
+     255.  *         description: Список медичних записів.
+     256.  *       500:
+     257.  *         description: Помилка сервера.
+     258.  */
+     259. router.get('/medicals/animal/:id', async (req, res) => {
+     260.   try {
+     261.     const records = await medicalModel.getRecordsByAnimal(req.params.id);
+     262.     res.json(records);
+     263.   } catch {
+     264.     res.status(500).json({ message: 'Internal server error' });
+     265.   }
+     266. });
+     267. 
+     268. /**
+     269.  * @openapi
+     270.  * /adoptions:
+     271.  *   post:
+     272.  *     summary: Подати заявку на усиновлення
+     273.  *     tags: [Adoptions]
+     274.  *     requestBody:
+     275.  *       required: true
+     276.  *       description: Дані заявки
+     277.  *       content:
+     278.  *         application/json:
+     279.  *           schema:
+     280.  *             type: object
+     281.  *             properties:
+     282.  *               animal_id:
+     283.  *                 type: integer
+     284.  *               user_id:
+     285.  *                 type: integer
+     286.  *               note:
+     287.  *                 type: string
+     288.  *     responses:
+     289.  *       201:
+     290.  *         description: Заявка прийнята.
+     291.  *       400:
+     292.  *         description: Помилка подачі заявки.
+     293.  */
+     294. router.post('/adoptions', async (req, res) => {
+     295.   try {
+     296.     const request = await adoptionModel.addRequest(req.body);
+     297.     res.status(201).json(request);
+     298.   } catch {
+     299.     res.status(400).json({ message: 'Failed to submit adoption request.' });
+     300.   }
+     301. });
+     302. 
+     303. app.use('/api', router);
+     304. 
+     305. app.listen(PORT, () => {
+     306.   console.log(`Сервер запущено на http://localhost:${PORT}`);
+     307. });
+     308.
