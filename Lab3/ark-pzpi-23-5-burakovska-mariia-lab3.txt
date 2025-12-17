@@ -1,1 +1,1054 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+
+
+Звіт
+з лабораторної роботи № 3 з дисципліни
+Аналіз та рефакторинг коду
+за темою «Програмна система для допомоги тваринам у притулках із використанням технологій IoT, веб та мобільних клієнтів» 
+
+
+
+
+
+Виконала:                                                                 Перевірив:
+ст. гр. ПЗПІ-23-5                        			ст. викладач кафедри ПІ
+Бураковська Марія					Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН
+№ДатаВерсія звітуОпис змін та виправлень116.12.20250.1Створення структури звіту 
+
+
+
+2 ЗАВДАННЯ
+* Розробити бізнес логіку серверної частини програмної системи.
+* Розробити функції адміністрування серверної частини програмної системи.
+* Створити програмну реалізацію бізнес логіки та функцій адміністрування серверної частини.
+* Перевірити роботу серверної частини системи.
+
+
+     3 ОПИС ВИКОНАНОЇ РОБОТИ
+     Для роботи з базою даних створено окремі JavaScript-модулі (models/), що використовують Knex.js для доступу до SQLite.
+* animalModel.js — функції для додавання (addAnimal), отримання (getAllAnimals, getAnimalById), оновлення (updateAnimal) та видалення (removeAnimal) тварин;
+* userModel.js — реєстрація користувачів (addUser), оновлення профілів (updateUser), управління волонтерами (addVolunteer, removeVolunteer);
+* taskModel.js — створення завдань адміністратором (addTask), видалення (removeTask), оновлення статусу (updateTaskStatus).
+* sensorModel.js — прийом IoT-показників (addReading), перевірка аномалій (checkAnomaly);
+* medicalModel.js — управління медичними записами (addRecord, removeRecord), отримання медичної історії тварини (getRecordsByAnimal);
+* adoptionModel.js — подача заявки на усиновлення (addRequest), зміна статусу заявки (updateStatus);
+* donationModel.js — обробка донатів (addDonation), отримання статистики (getTotalAmount, getAverageAmount, getCount, getAllDonations).
+     Особливості реалізації:
+* Для забезпечення реляційних зв’язків у SQLite увімкнено PRAGMA foreign_keys = ON;
+* При видаленні головної сутності (користувача, тварини) автоматично видаляються залежні записи (ON DELETE CASCADE);
+* Усі функції моделей тестувалися через Postman та працюють відповідно до вимог.
+     Реалізовано повний набір функцій адміністрування серверної частини для управління користувачами, тваринами, завданнями та донатами.
+     Функції для адміністратора:
+  а) Користувачі
+1. оновлення даних користувача: PUT /admin/users/:id → userModel.updateUser;
+2. видалення користувача: DELETE /admin/users/:id → userModel.removeUser;
+3. додавання волонтера: POST /admin/volunteers → userModel.addVolunteer;
+4. видалення волонтера: DELETE /admin/volunteers/:id → userModel.removeVolunteer;
+  б) Тварини
+1. додавання тварини: POST /animals → animalModel.addAnimal;
+2. оновлення тварини: PUT /animals/:id → animalModel.updateAnimal;
+3. видалення тварини: DELETE /animals/:id → animalModel.removeAnimal;
+4. статистика тварин: GET /admin/animals/statistics → повертає кількість available, adopted, pending.
+  в) Завдання
+1. створення завдань для волонтерів: POST /tasks → taskModel.addTask;
+2. видалення завдань: DELETE /tasks/:id → taskModel.removeTask;
+3. рейтинг волонтерів: GET /admin/volunteers/ranking → обчислюється за кількістю виконаних завдань.
+  г) Донати
+1. загальна статистика донатів: GET /admin/donations/statistics → повертає суму грошових донатів і кількість матеріальних;
+2. розширена статистика: GET /admin/donations/statistics/advanced → загальна сума, середня сума, кількість донатів (donationModel.getTotalAmount, getAverageAmount, getCount).
+  д) Заявки на усиновлення
+1. оновлення статусу заявки: PUT /adoptions/:id/status → adoptionModel.updateStatus (pending, approved, rejected).
+     У серверній частині реалізовано дві ключові бізнес-функції, що виходять за межі простого CRUD та забезпечують складну обробку даних:
+     Обробка IoT-показників тварин
+     Функція checkAnomalyStatistical(animal_id, sensor_type) аналізує останні показники сенсора певного типу для конкретної тварини. Вона завантажує останні 20 вимірювань із таблиці sensor_readings та обчислює середнє (mean) та стандартне відхилення (stdDev). Поточне значення порівнюється із середнім: якщо воно відхиляється більш ніж на 2 стандартні відхилення, вважається аномалією. Функція повертає об’єкт із інформацією про поточне значення, середнє, стандартне відхилення та ознаку аномалії (isAnomaly). Такий підхід дозволяє серверу автоматично визначати нестандартні стани тварини, що важливо для своєчасного реагування персоналу та забезпечення здоров’я тварин.
+     Оцінка ефективності волонтерів
+     Функція calculateVolunteerActivityIndex() аналізує завдання всіх волонтерів і обчислює індекс їхньої активності. Для кожного волонтера підраховуються: кількість виконаних завдань (completed) та кількість прострочених, але не виконаних завдань (overdue). Потім ці показники нормалізуються щодо максимуму серед усіх волонтерів і обчислюється індекс активності (VAI) за формулою:
+VAI=0.7⋅C_norm+0.3⋅(1−O_norm)
+     де C_norm — відносна кількість виконаних завдань, O_norm — відносна кількість прострочених завдань. Функція повертає масив об’єктів, що містить ідентифікатор волонтера, кількість виконаних та прострочених завдань і сам індекс активності. Такий показник дозволяє адміністраторам оцінювати ефективність роботи волонтерів, враховуючи як результативність, так і дотримання термінів виконання завдань.
+     Завдяки цим функціям серверна частина забезпечує контроль цілісності даних, оцінку роботи персоналу та моніторинг стану тварин у реальному часі, що є ключовою бізнес-логікою системи.
+     Програмний код знаходиться у Додатку В
+     UML діаграми діяльності та UML діаграма взаємодії, а також тести запитів знаходяться у Додатку Б.
+     Усю специфікацію можна переглянути в додатку Г.
+
+
+4 ВИСНОВКИ
+У ході виконання лабораторної роботи було розроблено серверну частину програмної системи для допомоги тваринам у притулках з використанням веб- та IoT-технологій. Реалізовано повноцінну бізнес-логіку та функції адміністрування, що забезпечують управління користувачами, волонтерами, тваринами, завданнями, заявками на усиновлення, медичними записами та донатами.
+Окрім стандартних CRUD-операцій, у роботі реалізовано складні бізнес-функції, зокрема статистичний аналіз IoT-показників для виявлення аномальних станів тварин та розрахунок інтегрального індексу активності волонтерів. Дані функції дозволяють автоматизувати моніторинг стану тварин і об’єктивно оцінювати ефективність роботи персоналу притулку.
+Роботу серверної частини було перевірено за допомогою інструмента Postman, що підтвердило коректність реалізації API та відповідність результатів заданим вимогам.
+
+
+5 ВИКОРИСТАНІ ДЖЕРЕЛА
+     1. Документація Node.js: https://nodejs.org/en/docs/
+     2. Документація Express.js: https://expressjs.com/
+     3. Документація Knex.js: http://knexjs.org/
+     4. Документація SQLite: https://www.sqlite.org/
+     5. Специфікація OpenAPI (Swagger): https://swagger.io/specification/
+     6. Документація Swagger JSDoc: https://github.com/Surnet/swagger-jsdoc
+
+
+ДОДАТОК А
+https://youtu.be/xnNQxkUEUjk
+0:47 - Опис архітектури серверної частини 
+1:40 - Бізнес-логіка серверної частини 
+3:32 - Функції адміністрування серверної частини 
+5:00 - UML-діаграми  
+6:12 - Тестування 
+
+ДОДАТОК Б
+
+Рисунок 1 – Тест запиту реєстрації
+
+
+Рисунок 2 – Тест запиту редагування користувача
+
+
+Рисунок 3 – Тест запиту додавання волонтера
+
+
+Рисунок 4 – Тест запиту видалення волонтера
+
+Рисунок 5 – Тест запиту додавання тварини
+
+
+Рисунок 6 – Тест запиту оновлення даних тварини
+
+Рисунок 7 – Тест запиту додавання задачі
+
+
+Рисунок 8 – Тест запиту видалення задачі
+
+
+Рисунок 9 – Тест запиту отримання рейтингу волонтерів
+
+
+Рисунок 10 – Тест запиту додавання медичного запису
+
+Рисунок 11 – Тест запиту видалення медичного запису
+
+
+Рисунок 12 – Тест запиту редагування статусу заявки на усиновлення
+
+Рисунок 13 – Тест запиту отримання усіх заявок на усиновлення
+
+
+Рисунок 14 – Тест запиту отримання статистики донатів
+
+Рисунок 15 – Тест запиту отримання розширеної статистики донатів
+
+
+Рисунок 16 – Тест запиту отримання звіту про ефективність волонтерів
+
+Рисунок 17 - UML діаграми діяльності обробки запиту на усиновлення, створення медичного запису та реєстрації нового користувача
+
+ 
+Рисунок 18 - UML діаграми діяльності оновлення даних про тварину, створення нової задачі та обробки донату
+ 
+Рисунок 19 - UML діаграми взаємодії отримання статистики ефективності волонтерів
+
+
+ДОДАТОК В
+	Оновлена модель донатів:
+1. const knexConfig = require('../knexfile');
+2. const knex = require('knex')(knexConfig.development);
+3. 
+4. try {
+5.     async function addDonation(donationData) {
+6.         const [id] = await knex('donations').insert(donationData);
+7.         return knex('donations').where({ id }).first();
+8.     }
+9. 
+10.     async function getAllDonations() {
+11.         return knex('donations')
+12.             .select('donations.*', 'users.name as donor_name')
+13.             .leftJoin('users', 'donations.user_id', 'users.id')
+14.             .orderBy('date', 'desc');
+15.     }
+16. 
+17. async function getTotalAmount() {
+18.   const total = await knex('donations').sum('amount as total');
+19.   return total[0]?.total ?? 0;
+20. }
+21. 
+22. async function getAverageAmount() {
+23.   const avg = await knex('donations').avg('amount as avg');
+24.   return avg[0]?.avg ?? 0;
+25. }
+26. 
+27. async function getCount() {
+28.   const count = await knex('donations').count('id as count');
+29.   return count[0]?.count ?? 0;
+30. }
+31. 
+32.     console.log("DEBUG: donationModel initialized.");
+33. 
+34.     module.exports = {
+35.         addDonation,
+36.         getAllDonations,
+37.         getTotalAmount,
+38.         getAverageAmount,
+39.         getCount
+40.     };
+41. 
+42. } catch (error) {
+43.     console.error("FATAL ERROR IN DONATION MODEL INITIALIZATION:", error.message);
+44.     process.exit(1);
+45. }
+
+     Оновлена модель сенсорів:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addReading(data) {
+     6.       const [id] = await knex('sensor_readings').insert(data);
+     7.       return knex('sensor_readings').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function checkAnomalyStatistical(animal_id, sensor_type) {
+     11.     const readings = await knex('sensor_readings')
+     12.         .where({ animal_id, sensor_type })
+     13.         .orderBy('timestamp', 'desc')
+     14.         .limit(20);
+     15. 
+     16.     if (readings.length < 5) {
+     17.         return { isAnomaly: false, reason: 'Not enough data' };
+     18.     }
+     19. 
+     20.     const values = readings.map(r => r.value);
+     21.     const mean = values.reduce((a, b) => a + b, 0) / values.length;
+     22. 
+     23.     const variance =
+     24.         values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+     25. 
+     26.     const stdDev = Math.sqrt(variance);
+     27.     const current = values[0];
+     28. 
+     29.     const isAnomaly = Math.abs(current - mean) > 2 * stdDev;
+     30. 
+     31.     return {
+     32.         isAnomaly,
+     33.         current,
+     34.         mean,
+     35.         stdDev
+     36.     };
+     37. }
+     38. 
+     39.     async function getReadingsByAnimal(animal_id) {
+     40.     return knex('sensor_readings').where({ animal_id }).orderBy('timestamp', 'desc');
+     41.     }
+     42. 
+     43. 
+     44.     console.log("DEBUG: sensorModel initialized.");
+     45. 
+     46.     module.exports = {
+     47.       addReading,
+     48.       checkAnomalyStatistical,
+     49.       getReadingsByAnimal,
+     50.     };
+     51. 
+     52. } catch (error) {
+     53.     console.error("FATAL ERROR IN SENSOR MODEL INITIALIZATION:", error.message);
+     54.     process.exit(1);
+     55. }
+     
+     Оновлена модель задач:
+     1. const knexConfig = require('../knexfile');
+     2. const knex = require('knex')(knexConfig.development);
+     3. 
+     4. try {
+     5.     async function addTask(taskData) {
+     6.       const [id] = await knex('tasks').insert(taskData);
+     7.       return knex('tasks').where({ id }).first();
+     8.     }
+     9. 
+     10.     async function getTasksByVolunteer(volunteer_id) {
+     11.       return knex('tasks').where({ volunteer_id }).select('*'); 
+     12.     }
+     13. 
+     14.     async function updateTaskStatus(id, status) {
+     15.     id = Number(id);
+     16.     await knex('tasks').where({ id }).update({ status });  
+     17.     return knex('tasks').where({ id }).first();
+     18.     }
+     19. 
+     20.     async function updateTask(id, changes) {
+     21.         await knex('tasks').where({ id }).update({ ...changes, updated_at: knex.fn.now() });
+     22.         return knex('tasks').where({ id }).first();
+     23.     }
+     24. 
+     25.     async function removeTask(id) {
+     26.         return knex('tasks').where({ id }).del();
+     27.     }
+     28. 
+     29.     async function getCompletedCountByVolunteer(volunteer_id) {
+     30.       const completed = await knex('tasks').where({ volunteer_id, status: 'completed' }).count('id as count');
+     31.         return completed[0].count;
+     32.     }
+     33. 
+     34.     async function calculateVolunteerActivityIndex() {
+     35.     const volunteers = await knex('volunteers').select('id');
+     36. 
+     37.     const stats = [];
+     38. 
+     39.     for (const v of volunteers) {
+     40.         const tasks = await knex('tasks').where({ volunteer_id: v.id });
+     41. 
+     42.         const completed = tasks.filter(t => t.status === 'completed').length;
+     43. 
+     44.         const overdue = tasks.filter(t =>
+     45.             t.status !== 'completed' &&
+     46.             t.due_date &&
+     47.             new Date(t.due_date) < new Date()
+     48.         ).length;
+     49. 
+     50.         stats.push({
+     51.             volunteer_id: v.id,
+     52.             completed,
+     53.             overdue
+     54.         });
+     55.     }
+     56. 
+     57.     const maxCompleted = Math.max(...stats.map(s => s.completed), 1);
+     58.     const maxOverdue = Math.max(...stats.map(s => s.overdue), 1);
+     59. 
+     60.     return stats.map(s => {
+     61.         const C_norm = s.completed / maxCompleted;
+     62.         const O_norm = s.overdue / maxOverdue;
+     63. 
+     64.         const VAI = 0.7 * C_norm + 0.3 * (1 - O_norm);
+     65. 
+     66.         return {
+     67.             volunteer_id: s.volunteer_id,
+     68.             completed_tasks: s.completed,
+     69.             overdue_tasks: s.overdue,
+     70.             activity_index: VAI.toFixed(2)
+     71.         };
+     72.     });
+     73. }
+     74. 
+     75. 
+     76.     console.log("DEBUG: taskModel initialized.");
+     77. 
+     78.     module.exports = {
+     79.       addTask,
+     80.       getTasksByVolunteer,
+     81.       updateTaskStatus,
+     82.       updateTask,
+     83.       removeTask,
+     84.       getCompletedCountByVolunteer,
+     85.       calculateVolunteerActivityIndex,
+     86.     };
+     87. 
+     88. } catch (error) {
+     89.     console.error("FATAL ERROR IN TASK MODEL INITIALIZATION:", error.message);
+     90.     process.exit(1);
+     91. }
+     
+     Оновлений головний виконавчий файл app.js:
+     1. const express = require('express');
+     2. const animalModel = require('./models/animalModel');
+     3. const userModel = require('./models/userModel');
+     4. const taskModel = require('./models/taskModel');
+     5. const sensorModel = require('./models/sensorModel');
+     6. const adoptionModel = require('./models/adoptionModel');
+     7. const donationModel = require('./models/donationModel');
+     8. const medicalModel = require('./models/medicalModel');
+     9. const swaggerUi = require('swagger-ui-express');
+     10. const swaggerJsdoc = require('swagger-jsdoc');
+     11. 
+     12. const swaggerOptions = {
+     13.   definition: {
+     14.     openapi: '3.0.0',
+     15.     info: {
+     16.       title: 'Shelter Management API (Public/Volunteer/Admin)',
+     17.       version: '1.0.0',
+     18.       description: 'Публічний, волонтерський та адміністративний API для системи притулку',
+     19.     },
+     20.     servers: [{ url: 'http://localhost:3000/api' }],
+     21.   },
+     22.   apis: ['./app.js'],
+     23. };
+     24. 
+     25. const swaggerSpec = swaggerJsdoc(swaggerOptions);
+     26. const app = express();
+     27. const PORT = 3000;
+     28. 
+     29. app.use(express.json());
+     30. app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+     31. 
+     32. app.get('/', (req, res) => {
+     33.   res.send('<h1>Shelter API Server is Running!</h1><p>Data endpoints start at: /api/</p>');
+     34. });
+     35. 
+     36. const router = express.Router();
+     37. 
+     38. /**
+     39.  * @openapi
+     40.  * /animals/{id}:
+     41.  *   put:
+     42.  *     summary: Оновити дані тварини (Адміністратор)
+     43.  *     tags: [Animals]
+     44.  *     parameters:
+     45.  *       - in: path
+     46.  *         name: id
+     47.  *         required: true
+     48.  *         schema: { type: integer }
+     49.  *         description: ID тварини
+     50.  *     requestBody:
+     51.  *       required: true
+     52.  *       content:
+     53.  *         application/json:
+     54.  *           schema:
+     55.  *             type: object
+     56.  *             properties:
+     57.  *               status:
+     58.  *                 type: string
+     59.  *                 enum: [available, adopted, pending]
+     60.  *                 example: "adopted"
+     61.  *               description: { type: string, example: "Додаткові відомості" }
+     62.  *     responses:
+     63.  *       200:
+     64.  *         description: Дані оновлено.
+     65.  *       404:
+     66.  *         description: Тварину не знайдено.
+     67.  */
+     68. router.put('/animals/:id', async (req, res) => {
+     69.   try {
+     70.     const updatedAnimal = await animalModel.updateAnimal(req.params.id, req.body);
+     71.     if (!updatedAnimal) return res.status(404).json({ message: 'Animal not found.' });
+     72.     res.json(updatedAnimal);
+     73.   } catch (error) {
+     74.     res.status(500).json({ message: 'Could not update animal.' });
+     75.   }
+     76. });
+     77. 
+     78. /**
+     79.  * @openapi
+     80.  * /animals/{id}:
+     81.  *   delete:
+     82.  *     summary: Видалити тварину (Адміністратор)
+     83.  *     tags: [Animals]
+     84.  *     parameters:
+     85.  *       - in: path
+     86.  *         name: id
+     87.  *         required: true
+     88.  *         schema: { type: integer }
+     89.  *         description: ID тварини
+     90.  *     responses:
+     91.  *       204:
+     92.  *         description: Тварина успішно видалена.
+     93.  *       404:
+     94.  *         description: Тварину не знайдено.
+     95.  */
+     96. router.delete('/animals/:id', async (req, res) => {
+     97.   try {
+     98.     const deletedCount = await animalModel.removeAnimal(req.params.id);
+     99.     if (deletedCount === 0) return res.status(404).json({ message: 'Animal not found.' });
+     100.     res.status(204).send();
+     101.   } catch (error) {
+     102.     res.status(500).json({ message: 'Could not delete animal.' });
+     103.   }
+     104. });
+     105. 
+     106. /**
+     107.  * @openapi
+     108.  * /tasks:
+     109.  *   post:
+     110.  *     summary: Створити нове завдання та призначити волонтеру (Адміністратор)
+     111.  *     tags: [Tasks]
+     112.  *     requestBody:
+     113.  *       required: true
+     114.  *       content:
+     115.  *         application/json:
+     116.  *           schema:
+     117.  *             type: object
+     118.  *             properties:
+     119.  *               volunteer_id: { type: integer, example: 1 }
+     120.  *               description: { type: string, example: "Прибрати клітку 4А" }
+     121.  *               due_date: { type: string, format: date, example: "2025-12-31" }
+     122.  *     responses:
+     123.  *       201:
+     124.  *         description: Завдання успішно створено.
+     125.  *       400:
+     126.  *         description: Недійсні дані.
+     127.  */
+     128. router.post('/tasks', async (req, res) => {
+     129.   try {
+     130.     const newTask = await taskModel.addTask(req.body);
+     131.     res.status(201).json(newTask);
+     132.   } catch (error) {
+     133.     res.status(400).json({ message: 'Could not create task.' });
+     134.   }
+     135. });
+     136. 
+     137. /**
+     138.  * @openapi
+     139.  * /tasks/{id}:
+     140.  *   delete:
+     141.  *     summary: Видалити завдання (Адміністратор)
+     142.  *     tags: [Tasks]
+     143.  *     parameters:
+     144.  *       - in: path
+     145.  *         name: id
+     146.  *         required: true
+     147.  *         schema: { type: integer }
+     148.  *     responses:
+     149.  *       204:
+     150.  *         description: Завдання успішно видалено.
+     151.  *       404:
+     152.  *         description: Завдання не знайдено.
+     153.  */
+     154. router.delete('/tasks/:id', async (req, res) => {
+     155.   try {
+     156.     const deletedCount = await taskModel.removeTask(req.params.id);
+     157.     if (deletedCount === 0) return res.status(404).json({ message: 'Task not found.' });
+     158.     res.status(204).send();
+     159.   } catch (error) {
+     160.     res.status(500).json({ message: 'Could not delete task.' });
+     161.   }
+     162. });
+     163. 
+     164. /**
+     165.  * @openapi
+     166.  * /medicals:
+     167.  *   post:
+     168.  *     summary: Додати медичний запис для тварини (Адміністратор)
+     169.  *     tags: [Medical Records]
+     170.  *     requestBody:
+     171.  *       required: true
+     172.  *       content:
+     173.  *         application/json:
+     174.  *           schema:
+     175.  *             type: object
+     176.  *             properties:
+     177.  *               animal_id: { type: integer, example: 1 }
+     178.  *               date: { type: string, format: date, example: "2025-12-15" }
+     179.  *               description: { type: string, example: "Легка застуда" }
+     180.  *               treatment: { type: string, example: "Антибіотики 5 днів" }
+     181.  *     responses:
+     182.  *       201:
+     183.  *         description: Запис успішно додано.
+     184.  *       400:
+     185.  *         description: Недійсні дані.
+     186.  */
+     187. router.post('/medicals', async (req, res) => {
+     188.   try {
+     189.     const newRecord = await medicalModel.addRecord(req.body);
+     190.     res.status(201).json(newRecord);
+     191.   } catch {
+     192.     res.status(400).json({ message: 'Could not add medical record.' });
+     193.   }
+     194. });
+     195. 
+     196. /**
+     197.  * @openapi
+     198.  * /adoptions:
+     199.  *   get:
+     200.  *     summary: Отримати список усіх заявок на усиновлення (Адміністратор)
+     201.  *     tags: [Adoptions]
+     202.  *     responses:
+     203.  *       200:
+     204.  *         description: Список заявок.
+     205.  *       500:
+     206.  *         description: Помилка сервера.
+     207.  */
+     208. router.get('/adoptions', async (req, res) => {
+     209.   try {
+     210.     const requests = await adoptionModel.getAllRequests();
+     211.     res.json(requests);
+     212.   } catch {
+     213.     res.status(500).json({ message: 'Internal server error' });
+     214.   }
+     215. });
+     216. 
+     217. /**
+     218.  * @openapi
+     219.  * /adoptions/{id}/status:
+     220.  *   put:
+     221.  *     summary: Оновити статус заявки на усиновлення (Адміністратор/Волонтер)
+     222.  *     tags: [Adoptions]
+     223.  *     parameters:
+     224.  *       - in: path
+     225.  *         name: id
+     226.  *         required: true
+     227.  *         schema: { type: integer }
+     228.  *     requestBody:
+     229.  *       required: true
+     230.  *       content:
+     231.  *         application/json:
+     232.  *           schema:
+     233.  *             type: object
+     234.  *             properties:
+     235.  *               status:
+     236.  *                 type: string
+     237.  *                 enum: [pending, approved, rejected]
+     238.  *                 example: approved
+     239.  *     responses:
+     240.  *       200:
+     241.  *         description: Статус оновлено.
+     242.  *       404:
+     243.  *         description: Заявка не знайдена.
+     244.  *       500:
+     245.  *         description: Помилка сервера.
+     246.  */
+     247. router.put('/adoptions/:id/status', async (req, res) => {
+     248.     try {
+     249.         const id = parseInt(req.params.id, 10);
+     250.         const validStatuses = ['pending', 'approved', 'rejected'];
+     251. 
+     252.         if (!validStatuses.includes(req.body.status)) {
+     253.             return res.status(400).json({ message: 'Invalid status value.' });
+     254.         }
+     255. 
+     256.         const updated = await adoptionModel.updateStatus(id, req.body.status);
+     257. 
+     258.         if (!updated) {
+     259.             return res.status(404).json({ message: 'Adoption request not found.' });
+     260.         }
+     261. 
+     262.         res.json(updated);
+     263.     } catch (error) {
+     264.         console.error(error);
+     265.         res.status(500).json({ message: 'Could not update status.' });
+     266.     }
+     267. });
+     268. 
+     269. /**
+     270.  * @openapi
+     271.  * /admin/animals/statistics:
+     272.  *   get:
+     273.  *     summary: Статистика по тваринам (адмін)
+     274.  *     tags: [Admin]
+     275.  *     responses:
+     276.  *       200:
+     277.  *         description: Повертає кількість доступних, усиновлених та очікуючих тварин.
+     278.  */
+     279. router.get('/admin/animals/statistics', async (req, res) => {
+     280.   try {
+     281.     const allAnimals = await animalModel.getAllAnimals();
+     282.     const stats = { available: 0, adopted: 0, pending: 0 };
+     283.     allAnimals.forEach(a => {
+     284.       stats[a.status] = (stats[a.status] || 0) + 1;
+     285.     });
+     286.     res.json(stats);
+     287.   } catch {
+     288.     res.status(500).json({ message: 'Could not fetch animal statistics.' });
+     289.   }
+     290. });
+     291. 
+     292. /**
+     293.  * @openapi
+     294.  * /admin/volunteers/ranking:
+     295.  *   get:
+     296.  *     summary: Рейтинг волонтерів за кількістю виконаних завдань
+     297.  *     tags: [Admin]
+     298.  *     responses:
+     299.  *       200:
+     300.  *         description: Повертає рейтинг волонтерів.
+     301.  */
+     302. router.get('/admin/volunteers/ranking', async (req, res) => {
+     303.   try {
+     304.     const volunteers = await userModel.getAllVolunteers();
+     305.     const ranking = [];
+     306.     for (const v of volunteers) {
+     307.       const tasks = await taskModel.getTasksByVolunteer(v.id);
+     308.       const completed = tasks.filter(t => t.status === 'completed').length;
+     309.       ranking.push({ volunteer: v.name, completed_tasks: completed });
+     310.     }
+     311.     ranking.sort((a, b) => b.completed_tasks - a.completed_tasks);
+     312.     res.json(ranking);
+     313.   } catch {
+     314.     res.status(500).json({ message: 'Could not fetch volunteer ranking.' });
+     315.   }
+     316. });
+     317. 
+     318. /**
+     319.  * @openapi
+     320.  * /admin/donations/statistics:
+     321.  *   get:
+     322.  *     summary: Статистика донатів (адмін)
+     323.  *     tags: [Admin]
+     324.  *     responses:
+     325.  *       200:
+     326.  *         description: Повертає загальну суму грошових донатів та кількість матеріальних.
+     327.  */
+     328. router.get('/admin/donations/statistics', async (req, res) => {
+     329.   try {
+     330.     const donations = await donationModel.getAllDonations();
+     331.     const stats = { money_total: 0, material_count: 0 };
+     332.     donations.forEach(d => {
+     333.       if (d.type === 'money') stats.money_total += d.amount;
+     334.       else if (d.type === 'material') stats.material_count += 1;
+     335.     });
+     336.     res.json(stats);
+     337.   } catch {
+     338.     res.status(500).json({ message: 'Could not fetch donation statistics.' });
+     339.   }
+     340. });
+     341. 
+     342. /**
+     343.  * @openapi
+     344.  * /animals/{id}:
+     345.  *   get:
+     346.  *     summary: Отримати тварину за ID
+     347.  *     tags: [Animals]
+     348.  *     parameters:
+     349.  *       - in: path
+     350.  *         name: id
+     351.  *         required: true
+     352.  *         schema: { type: integer }
+     353.  *     responses:
+     354.  *       200:
+     355.  *         description: Дані тварини.
+     356.  *       404:
+     357.  *         description: Тварину не знайдено.
+     358.  */
+     359. router.get('/animals/:id', async (req, res) => {
+     360.   try {
+     361.     const animal = await animalModel.getAnimalById(req.params.id);
+     362.     if (!animal) return res.status(404).json({ message: 'Animal not found.' });
+     363.     res.json(animal);
+     364.   } catch {
+     365.     res.status(500).json({ message: 'Internal server error' });
+     366.   }
+     367. });
+     368. 
+     369. /**
+     370.  * @openapi
+     371.  * /users/email/{email}:
+     372.  *   get:
+     373.  *     summary: Отримати користувача за email
+     374.  *     tags: [Users]
+     375.  *     parameters:
+     376.  *       - in: path
+     377.  *         name: email
+     378.  *         required: true
+     379.  *         schema: { type: string }
+     380.  *     responses:
+     381.  *       200:
+     382.  *         description: Дані користувача.
+     383.  *       404:
+     384.  *         description: Користувача не знайдено.
+     385.  */
+     386. router.get('/users/email/:email', async (req, res) => {
+     387.   try {
+     388.     const user = await userModel.getUserByEmail(req.params.email);
+     389.     if (!user) return res.status(404).json({ message: 'User not found.' });
+     390.     res.json(user);
+     391.   } catch {
+     392.     res.status(500).json({ message: 'Internal server error' });
+     393.   }
+     394. });
+     395. 
+     396. /**
+     397.  * @openapi
+     398.  * /admin/users/{id}:
+     399.  *   put:
+     400.  *     summary: Оновити дані користувача (Адміністратор)
+     401.  *     tags: [Admin]
+     402.  *     parameters:
+     403.  *       - in: path
+     404.  *         name: id
+     405.  *         required: true
+     406.  *         schema: { type: integer }
+     407.  *     requestBody:
+     408.  *       required: true
+     409.  *       content:
+     410.  *         application/json:
+     411.  *           schema:
+     412.  *             type: object
+     413.  *             properties:
+     414.  *               name: { type: string }
+     415.  *               email: { type: string }
+     416.  *               role: { type: string, enum: [ADMIN, VOLUNTEER, USER] }
+     417.  *     responses:
+     418.  *       200:
+     419.  *         description: Дані користувача оновлено.
+     420.  *       404:
+     421.  *         description: Користувача не знайдено.
+     422.  */
+     423. router.put('/admin/users/:id', async (req, res) => {
+     424.   try {
+     425.     const updated = await userModel.updateUser(req.params.id, req.body);
+     426.     if (!updated) return res.status(404).json({ message: 'User not found.' });
+     427.     res.json(updated);
+     428.   } catch {
+     429.     res.status(500).json({ message: 'Could not update user.' });
+     430.   }
+     431. });
+     432. 
+     433. /**
+     434.  * @openapi
+     435.  * /admin/users/{id}:
+     436.  *   delete:
+     437.  *     summary: Видалити користувача (Адміністратор)
+     438.  *     tags: [Admin]
+     439.  *     parameters:
+     440.  *       - in: path
+     441.  *         name: id
+     442.  *         required: true
+     443.  *         schema: { type: integer }
+     444.  *     responses:
+     445.  *       204:
+     446.  *         description: Користувача успішно видалено.
+     447.  *       404:
+     448.  *         description: Користувача не знайдено.
+     449.  */
+     450. router.delete('/admin/users/:id', async (req, res) => {
+     451.   try {
+     452.     const deletedCount = await userModel.removeUser(req.params.id);
+     453.     if (deletedCount === 0) return res.status(404).json({ message: 'User not found.' });
+     454.     res.status(204).send();
+     455.   } catch {
+     456.     res.status(500).json({ message: 'Could not delete user.' });
+     457.   }
+     458. });
+     459. 
+     460. /**
+     461.  * @openapi
+     462.  * /admin/volunteers:
+     463.  *   post:
+     464.  *     summary: Додати волонтера (Адміністратор)
+     465.  *     tags: [Admin]
+     466.  *     requestBody:
+     467.  *       required: true
+     468.  *       content:
+     469.  *         application/json:
+     470.  *           schema:
+     471.  *             type: object
+     472.  *             properties:
+     473.  *               user_id:  
+     474.  *                type: integer 
+     475.  *                example: 1
+     476.  *               availability:
+     477.  *                type: string
+     478.  *                example: "full-time"
+     479.  *               
+     480.  *     responses:
+     481.  *       201:
+     482.  *         description: Волонтер доданий.
+     483.  */
+     484. router.post('/admin/volunteers', async (req, res) => {
+     485.   try {
+     486.     const volunteer = await userModel.addVolunteer({
+     487.       user_id: req.body.user_id,
+     488.       availability: req.body.availability || null
+     489.     });
+     490.     res.status(201).json(volunteer);
+     491.   } catch (err) {
+     492.     console.error(err);
+     493.     res.status(400).json({ message: 'Could not add volunteer.' });
+     494.   }
+     495. });
+     496. 
+     497. /**
+     498.  * @openapi
+     499.  * /admin/volunteers/{id}:
+     500.  *   delete:
+     501.  *     summary: Видалити волонтера (Адміністратор)
+     502.  *     tags: [Admin]
+     503.  *     parameters:
+     504.  *       - in: path
+     505.  *         name: id
+     506.  *         required: true
+     507.  *         schema: { type: integer }
+     508.  *     responses:
+     509.  *       204:
+     510.  *         description: Волонтер видалений.
+     511.  *       404:
+     512.  *         description: Волонтера не знайдено.
+     513.  */
+     514. router.delete('/admin/volunteers/:id', async (req, res) => {
+     515.   try {
+     516.     const deletedCount = await userModel.removeVolunteer(req.params.id);
+     517.     if (deletedCount === 0) return res.status(404).json({ message: 'Volunteer not found.' });
+     518.     res.status(204).send();
+     519.   } catch {
+     520.     res.status(500).json({ message: 'Could not remove volunteer.' });
+     521.   }
+     522. });
+     523. 
+     524. /**
+     525.  * @openapi
+     526.  * /tasks/{id}:
+     527.  *   put:
+     528.  *     summary: Оновити завдання (Адміністратор)
+     529.  *     tags: [Tasks]
+     530.  *     parameters:
+     531.  *       - in: path
+     532.  *         name: id
+     533.  *         required: true
+     534.  *         schema: { type: integer }
+     535.  *     requestBody:
+     536.  *       required: true
+     537.  *       content:
+     538.  *         application/json:
+     539.  *           schema:
+     540.  *             type: object
+     541.  *             properties:
+     542.  *               description: { type: string }
+     543.  *               due_date: { type: string, format: date }
+     544.  *     responses:
+     545.  *       200:
+     546.  *         description: Завдання оновлено.
+     547.  *       404:
+     548.  *         description: Завдання не знайдено.
+     549.  */
+     550. router.put('/tasks/:id', async (req, res) => {
+     551.   try {
+     552.     const updated = await taskModel.updateTask(req.params.id, req.body);
+     553.     if (!updated) return res.status(404).json({ message: 'Task not found.' });
+     554.     res.json(updated);
+     555.   } catch {
+     556.     res.status(500).json({ message: 'Could not update task.' });
+     557.   }
+     558. });
+     559. 
+     560. /**
+     561.  * @openapi
+     562.  * /sensors/animal/{id}:
+     563.  *   get:
+     564.  *     summary: Отримати показники датчиків тварини
+     565.  *     tags: [IoT]
+     566.  *     parameters:
+     567.  *       - in: path
+     568.  *         name: id
+     569.  *         required: true
+     570.  *         schema: { type: integer }
+     571.  *     responses:
+     572.  *       200:
+     573.  *         description: Список показників.
+     574.  */
+     575. router.get('/sensors/animal/:id', async (req, res) => {
+     576.   try {
+     577.     const readings = await sensorModel.getReadingsByAnimal(req.params.id);
+     578.     res.json(readings);
+     579.   } catch {
+     580.     res.status(500).json({ message: 'Could not fetch sensor readings.' });
+     581.   }
+     582. });
+     583. 
+     584. /**
+     585.  * @openapi
+     586.  * /medicals/{id}:
+     587.  *   delete:
+     588.  *     summary: Видалити медичний запис (Адміністратор)
+     589.  *     tags: [Medical Records]
+     590.  *     parameters:
+     591.  *       - in: path
+     592.  *         name: id
+     593.  *         required: true
+     594.  *         schema: { type: integer }
+     595.  *     responses:
+     596.  *       204:
+     597.  *         description: Запис видалено.
+     598.  *       404:
+     599.  *         description: Запис не знайдено.
+     600.  */
+     601. router.delete('/medicals/:id', async (req, res) => {
+     602.   try {
+     603.     const deletedCount = await medicalModel.removeRecord(req.params.id);
+     604.     if (deletedCount === 0) return res.status(404).json({ message: 'Medical record not found.' });
+     605.     res.status(204).send();
+     606.   } catch {
+     607.     res.status(500).json({ message: 'Could not delete medical record.' });
+     608.   }
+     609. });
+     610. 
+     611. /**
+     612.  * @openapi
+     613.  * /admin/donations/statistics/advanced:
+     614.  *   get:
+     615.  *     summary: Розширена статистика донатів (адмін)
+     616.  *     tags: [Admin]
+     617.  *     responses:
+     618.  *       200:
+     619.  *         description: Повертає загальну суму, середню суму та кількість донатів.
+     620.  */
+     621. router.get('/admin/donations/statistics/advanced', async (req, res) => {
+     622.   try {
+     623.     const total = await donationModel.getTotalAmount();
+     624.     const average = await donationModel.getAverageAmount();
+     625.     const count = await donationModel.getCount();
+     626.     
+     627.     console.log("DEBUG: total=", total, "average=", average, "count=", count);
+     628.     
+     629.     res.json({ total, average, count });
+     630.   } catch (error) {
+     631.     console.error("ERROR:", error);
+     632.     res.status(500).json({ message: 'Could not fetch advanced donation statistics.' });
+     633.   }
+     634. });
+     635. 
+     636. /**
+     637.  * @openapi
+     638.  * /admin/volunteers/activity-index:
+     639.  *   get:
+     640.  *     summary: Розрахунок індексу активності волонтерів (бізнес-логіка)
+     641.  *     tags: [Admin]
+     642.  *     description: |
+     643.  *       Обчислює інтегральний індекс активності волонтерів на основі
+     644.  *       кількості виконаних та прострочених завдань.
+     645.  *       Індекс нормалізується та розраховується без модифікації структури БД.
+     646.  *     responses:
+     647.  *       200:
+     648.  *         description: Список волонтерів з показниками активності.
+     649.  *         content:
+     650.  *           application/json:
+     651.  *             schema:
+     652.  *               type: array
+     653.  *               items:
+     654.  *                 type: object
+     655.  *                 properties:
+     656.  *                   volunteer_id:
+     657.  *                     type: integer
+     658.  *                     example: 1
+     659.  *                   completed_tasks:
+     660.  *                     type: integer
+     661.  *                     example: 5
+     662.  *                   overdue_tasks:
+     663.  *                     type: integer
+     664.  *                     example: 1
+     665.  *                   activity_index:
+     666.  *                     type: string
+     667.  *                     example: "0.82"
+     668.  *       500:
+     669.  *         description: Помилка сервера.
+     670.  */
+     671. router.get('/admin/volunteers/activity-index', async (req, res) => {
+     672.   try {
+     673.     const stats = await taskModel.calculateVolunteerActivityIndex();
+     674.     res.json(stats);
+     675.   } catch (error) {
+     676.     console.error(error);
+     677.     res.status(500).json({ message: 'Could not calculate volunteer activity index.' });
+     678.   }
+     679. });
+     680. 
+     681. app.use('/api', router);
+     682. 
+     683. app.listen(PORT, () => {
+     684.   console.log(`Сервер запущено на http://localhost:${PORT}`);
+     685. });
+
+ДОДАТОК Г
+     Специфікація:
+МетодШляхПризначенняHTTP СтатусиGET/animals/{id}Отримати детальну інформацію про конкретну тварину за ідентифікатором.200 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)PUT/animals/{id}Оновити дані тварини (статус, опис).200 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)DELETE/animals/{id}Видалити тварину (Адміністратор).204 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)POST/tasksСтворити нове завдання та призначити волонтеру.201 (Створено), 400 (Помилка даних)PUT/tasks/{id}Оновити опис або дедлайн завдання (Адміністратор).200 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)DELETE/tasks/{id}Видалити завдання (Адміністратор).204 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)GET/sensors/animal/{id}Отримати історію показників сенсорів для конкретної тварини.200 (Успіх), 500 (Помилка сервера)POST/medicalsДодати медичний запис для тварини.201 (Створено), 400 (Помилка даних)DELETE/medicals/{id}Видалити медичний запис (Адміністратор).204 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)GET/adoptionsОтримати список усіх заявок на усиновлення (Адміністратор).200 (Успіх), 500 (Помилка сервера)PUT/adoptions/{id}/statusОновити статус заявки на усиновлення.200 (Успіх), 404 (Не знайдено), 400 (Помилка даних), 500 (Помилка сервера)PUT/admin/users/{id}Оновити дані користувача (ім’я, email, роль).200 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)DELETE/admin/users/{id}Видалити користувача з системи.204 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)POST/admin/volunteersДодати користувача до списку волонтерів. Тіло: user_id (integer), availability (string)201 (Створено), 400 (Помилка даних), 500 (Помилка сервера)DELETE/admin/volunteers/{id}Видалити волонтера з системи.204 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)GET/admin/animals/statisticsОтримати статистику по тваринам (доступні, усиновлені, очікуючі).200 (Успіх), 500 (Помилка сервера)GET/admin/volunteers/rankingРейтинг волонтерів за кількістю виконаних завдань.200 (Успіх), 500 (Помилка сервера)GET/admin/donations/statisticsСтатистика донатів (загальна сума грошових, кількість матеріальних).200 (Успіх), 500 (Помилка сервера)GET/admin/donations/statistics/advancedРозширена статистика донатів (загальна сума, середнє значення, кількість).200 (Успіх), 500 (Помилка сервера)GET/users/email/{email}Отримати користувача за email.200 (Успіх), 404 (Не знайдено), 500 (Помилка сервера)
+2
+
 
