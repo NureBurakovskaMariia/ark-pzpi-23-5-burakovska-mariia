@@ -1,1 +1,204 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+КАФЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+
+
+Звіт
+з лабораторної роботи № 5 з дисципліни
+Аналіз та рефакторинг коду
+за темою «Програмна система для допомоги тваринам у притулках із використанням технологій IoT, веб та мобільних клієнтів» 
+
+
+
+
+
+Виконала:                                                                 Перевірив:
+ст. гр. ПЗПІ-23-5                        			ст. викладач кафедри ПІ
+Бураковська Марія					Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН
+№ДатаВерсія звітуОпис змін та виправлень122.12.20250.1Створення структури звіту 
+
+
+
+2 ЗАВДАННЯ
+*  розгорнути реалізовану програмну систему;
+*  перевірити та налаштувати роботу розгорнутої програмної системи;
+*  продемонструвати описану у розділі 2.2 Vision & Scope функціональність програмної системи.
+* 
+
+     3 ОПИС ВИКОНАНОЇ РОБОТИ
+     Для виконання лабораторної роботи було здійснено розгортання програмної системи з використанням технології контейнеризації Docker. Це дозволило автоматизувати процес запуску всіх компонентів системи (бази даних, серверної частини та IoT-клієнта) в ізольованому середовищі.
+     Архітектура розгортання включає:
+* контейнер бази даних (PostgreSQL): Використовується для надійного зберігання даних про тварин, користувачів, завдання та показники сенсорів;
+* контейнер сервера (Node.js API): Забезпечує бізнес-логіку системи, обробку запитів від IoT-клієнта та надання доступу до даних;
+* контейнер IoT-клієнта (Python): Емулює роботу реальних сенсорів (температури та вологості), виконує первинний аналіз аномалій та надсилає дані на сервер.
+Весь програмний код наведено у Додатку В.
+     Ключові інженерні рішення при розгортанні:
+* Docker Compose: Використано маніфест docker-compose.yml для керування життєвим циклом усіх сервісів однією командою;
+* автоматична ініціалізація: Створено скрипт init.sql, який автоматично створює структуру таблиць та наповнює базу початковими даними при першому запуску контейнера.
+* мережева взаємодія: Налаштовано внутрішню віртуальну мережу Docker, де сервіси звертаються один до одного за іменами (наприклад, http://server:3000), що робить систему незалежною від локальних IP-адрес.
+     Було перевірено взаємодію компонентів: IoT-клієнт успішно надсилає дані, сервер фіксує їх у PostgreSQL, а адмін-панель дозволяє керувати притулком та переглядати статистику активності волонтерів. Скріншоти з перевірками знаходять у Додатку Б.
+4 ВИСНОВКИ
+     У ході виконання лабораторної роботи було успішно проведено розгортання програмної системи «Притулок для тварин» за допомогою Docker та Docker Compose.
+     Застосування контейнеризації дозволило вирішити проблему сумісності оточень та забезпечити швидкий старт системи на будь-якому комп'ютері. Перевірка роботи системи підтвердила повну працездатність бізнес-логіки: від збору даних віртуальними сенсорами до їхнього статистичного аналізу на сервері та збереження у базі даних PostgreSQL.
+
+
+5 ВИКОРИСТАНІ ДЖЕРЕЛА
+1. Docker Documentation — Офіційна документація платформи контейнеризації Docker. URL: https://docs.docker.com/
+2. Docker Compose Specification — Документація інструменту оркестрації багатоконтейнерних додатків. URL: https://docs.docker.com/compose/
+3. PostgreSQL Documentation — Офіційна документація системи керування базами даних PostgreSQL. URL: https://www.postgresql.org/docs/
+4. Node.js v18 Documentation — Документація середовища виконання JavaScript, використаного для серверної частини. URL: https://nodejs.org/docs/latest-v18.x/api/
+5. Knex.js: A SQL Query Builder for Javascript — Документація бібліотеки для роботи з SQL базами даних у Node.js. URL: https://knexjs.org/
+6. Python 3 Documentation — Офіційна документація мови Python для розробки IoT-клієнта. URL: https://docs.python.org/3/
+7. Requests: HTTP for Humans — Документація бібліотеки для здійснення HTTP-запитів у Python. URL: https://docs.python-requests.org/
+
+ДОДАТОК А
+https://youtu.be/eiC9gXbB3Qs
+0:43 - Детальний розбір інфраструктури Docker 
+3:00 - Жива демонстрація розгортання 
+3:36 - Перевірка функціональності через API 
+6:58 - Висновки
+
+ДОДАТОК Б
+
+Рисунок 1 - Docker Desktop з працюючими контейнерами
+
+
+Рисунок 2 - Успішний GET запит до списку тварин
+
+Рисунок 3 – Перевірка логів IoT клієнта
+
+
+ДОДАТОК В
+     Файл docker-compose.yml:
+     1. services:
+     2.   db:
+     3.     image: postgres:15
+     4.     restart: always
+     5.     environment:
+     6.       POSTGRES_DB: pet_shelter
+     7.       POSTGRES_USER: postgres
+     8.       POSTGRES_PASSWORD: 1
+     9.     ports:
+     10.       - "5432:5432"
+     11.     volumes:
+     12.       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+     13. 
+     14.   server:
+     15.     build: .
+     16.     ports:
+     17.       - "3000:3000"
+     18.     depends_on:
+     19.       - db
+     20.     environment:
+     21.       DB_HOST: db
+     22.       DB_USER: postgres
+     23.       DB_PASSWORD: 1
+     24.       DB_NAME: pet_shelter
+     25. 
+     26.   iot-client:
+     27.     build: ./lab4-iot-client
+     28.     depends_on:
+     29.       – server
+     
+     Файл init.sql:
+     1. CREATE TABLE users ( 
+     2.     id SERIAL PRIMARY KEY, 
+     3.     name TEXT NOT NULL, 
+     4.     email TEXT UNIQUE NOT NULL, 
+     5.     password_hash TEXT NOT NULL, 
+     6.     role TEXT NOT NULL CHECK(role IN ('ADMIN','VOLUNTEER','USER')) 
+     7. ); 
+     8. 
+     9. CREATE TABLE animals ( 
+     10.     id SERIAL PRIMARY KEY, 
+     11.     name TEXT NOT NULL, 
+     12.     species TEXT, 
+     13.     breed TEXT, 
+     14.     gender TEXT, 
+     15.     birth_date DATE, 
+     16.     status TEXT DEFAULT 'available', 
+     17.     description TEXT 
+     18. ); 
+     19. 
+     20. CREATE TABLE medical_records ( 
+     21.     id SERIAL PRIMARY KEY, 
+     22.     animal_id INTEGER NOT NULL REFERENCES animals(id) ON DELETE CASCADE, 
+     23.     date DATE NOT NULL, 
+     24.     description TEXT, 
+     25.     treatment TEXT
+     26. ); 
+     27. 
+     28. CREATE TABLE adoption_requests ( 
+     29.     id SERIAL PRIMARY KEY, 
+     30.     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+     31.     animal_id INTEGER NOT NULL REFERENCES animals(id) ON DELETE CASCADE, 
+     32.     status TEXT DEFAULT 'pending', 
+     33.     request_date DATE DEFAULT CURRENT_DATE, 
+     34.     note TEXT
+     35. ); 
+     36. 
+     37. CREATE TABLE donations ( 
+     38.     id SERIAL PRIMARY KEY, 
+     39.     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, 
+     40.     amount REAL, 
+     41.     type TEXT, 
+     42.     note TEXT, 
+     43.     date DATE DEFAULT CURRENT_DATE
+     44. ); 
+     45. 
+     46. CREATE TABLE volunteers ( 
+     47.     id SERIAL PRIMARY KEY, 
+     48.     user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+     49.     availability TEXT
+     50. ); 
+     51. 
+     52. CREATE TABLE tasks ( 
+     53.     id SERIAL PRIMARY KEY, 
+     54.     volunteer_id INTEGER REFERENCES volunteers(id) ON DELETE SET NULL, 
+     55.     description TEXT, 
+     56.     status TEXT DEFAULT 'open', 
+     57.     due_date DATE
+     58. ); 
+     59. 
+     60. CREATE TABLE sensor_readings ( 
+     61.     id SERIAL PRIMARY KEY, 
+     62.     animal_id INTEGER REFERENCES animals(id) ON DELETE SET NULL, 
+     63.     sensor_type TEXT, 
+     64.     value REAL, 
+     65.     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     66. );
+     67. 
+     68. INSERT INTO animals (name, species, breed, status) VALUES ('Рекс', 'Собака', 'Лабрадор', 'available');
+     
+     Файл Dockerfile у корені проєкту:
+     1. FROM node:18
+     2. WORKDIR /app
+     3. COPY package*.json ./
+     4. RUN npm install
+     5. COPY . .
+     6. EXPOSE 3000
+     7. CMD ["node", "app.js"]
+     
+     
+     Файл Dockerfile у каталозі lab4-iot-client:
+     1. FROM python:3.9-slim
+     2. WORKDIR /app
+     3. RUN pip install requests
+     4. COPY . .
+     5. CMD ["python", "main.py"]
+2
+
 
